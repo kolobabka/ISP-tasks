@@ -18,4 +18,13 @@ add_executable (${EXEC_FILE} ${SOURCES})
 target_include_directories(${EXEC_FILE} PRIVATE headers)
 
 
-target_compile_features(${EXEC_FILE} PRIVATE cxx_std_17)
+set (COMPILE_SETTINGS 
+
+    -O2
+    -Wall
+    -Wextra
+    -Wpedantic
+    # -Werror
+)
+
+target_compile_options(${EXEC_FILE} PRIVATE ${COMPILE_SETTINGS})
