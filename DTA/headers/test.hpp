@@ -12,7 +12,7 @@ struct vert {
 //----------------------------------------
 //----------------------------------------
 vert* source ();
-int testSource ();
+void testSource ();
 #if 0
 unsigned char* source(int size);
 void sink(unsigned char b);

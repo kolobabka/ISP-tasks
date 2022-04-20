@@ -5,12 +5,20 @@
 
 vert* source () {return (vert*) malloc (sizeof (vert));}
 
-int testSource () {
+void testSource () {
 
     vert* x = source (); //create vertex 
     vert* y = source (); //create vertex
+    vert* z = source (); //create vertex
+    vert* w = source (); //create vertex
+    vert* u = source (); //create vertex
+
+
     // vert* z = source ();
     x->l_ = y; // create edge between x and y
+    x->r_ = z;
+    // y->r_ = x->r_;
+        // x->l_ = y->r_;
     // y->l_ = x->l_;
 }
 

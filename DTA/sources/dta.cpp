@@ -10,6 +10,21 @@
 //----------------------------------------
 namespace {
 
+	void PrintNodes (std::ofstream &dumpOut, std::unordered_map<Vertex, std::set<Vertex, decltype(memInfo::cmpVert)>, std::hash<Vertex>, decltype(memInfo::cmpAddress)> &graph) {
+
+		#if 1
+		for (auto v : graph) {	
+			dumpOut << "\"" << std::hex << v.first << "\"" << " " 
+			<< "[shape = doublecircle lable = \"" << v.first << "\"]" << std::endl; 
+		}
+		#endif 
+		
+		for (auto v : graph) 
+			for (auto u : v.second) 
+				dumpOut << "\"" << v.first << "\"" << " -> " << "\"" << u.address_ << "\"" << ";" << std::endl;		
+	
+	}
+
 	QBDI::VMAction showInstruction(QBDI::VM *vm, QBDI::GPRState *gprState,
                                QBDI::FPRState *fprState, void *data) {
   		// Obtain an analysis of the instruction from the VM
@@ -32,6 +47,55 @@ namespace {
 
 		return *(regPtr + id);
 	}
+
+	bool isColored (std::set <Vertex, decltype(memInfo::cmpVert)>::iterator toFind, std::set <Vertex, decltype(memInfo::cmpVert)>::iterator end) {
+
+		if (toFind != end) 
+			return true;
+
+		return false;
+	}
+}
+//----------------------------------------
+//----------------------------------------
+
+void memInfo::dumpGraph (const char *fileName) const {
+
+	std::ofstream dumpOut(fileName, dumpOut.out | dumpOut.trunc);
+
+	dumpOut << "digraph nodes {\n";
+
+	PrintNodes(dumpOut, graph_);
+
+	dumpOut << "}";
+}
+
+std::set <Vertex, decltype(memInfo::cmpVert)>::iterator memInfo::find (const QBDI::rword address) const { 
+
+	if (vecs_.empty())
+		return vecs_.end();
+
+	Vertex find{address, sizeof (Vertex)};
+	auto toFind = vecs_.lower_bound (find);
+
+	if (toFind != vecs_.end()) {
+
+		if ((*toFind).address_ == address) 
+			return toFind;
+		
+		if (toFind == vecs_.begin()) 
+			return vecs_.end();
+
+		--toFind;
+		if ((*toFind).address_ + (*toFind).size_ >= address) 
+			return toFind;
+	}
+
+	toFind = std::prev (toFind);
+	if ((*toFind).address_ + (*toFind).size_ >= address) 
+		return toFind;
+	
+	return vecs_.end();
 }
 //----------------------------------------
 //----------------------------------------
@@ -40,20 +104,8 @@ QBDI::VMAction enterSourceDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	
 	memInfo *inf = static_cast<memInfo *> (data);
 
-	inf->enter_ = true;
 	inf->rbp_   = gprState->rbp; 
 	// std::cout << "--- Calloc detected ---" << std::endl;
-    return QBDI::VMAction::CONTINUE;
-}
-
-QBDI::VMAction sizeMallocDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
-					  			   QBDI::FPRState *fprState, void* data) {
-	
-	memInfo *inf = static_cast<memInfo *> (data);
-	
-	if (inf->enter_) 
-		inf->size_ = gprState->rdi;
-	
     return QBDI::VMAction::CONTINUE;
 }
 
@@ -63,19 +115,17 @@ QBDI::VMAction retMallocDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	memInfo *inf = static_cast<memInfo *> (data);
 
 	if (inf->rbp_ == gprState->rbp) {
-
-		inf->enter_ = false;
-		inf->mem_ = gprState->rax;
-
-		inf->vecs_.insert (new Vertex{inf->mem_, inf->size_});		
+		std::cout << "\t\t---ALLOCATION: " << std::hex <<  gprState->rax << std::endl;
+		inf->vecs_.emplace (gprState->rax, gprState->rdi);	
+		inf->graph_.insert ({{gprState->rax, gprState->rdi}, std::set<Vertex, decltype(memInfo::cmpVert)>{}});
 	}
 	
     return QBDI::VMAction::CONTINUE;
 }
-std::ostream& operator << (std::ostream &out, const Vertex* vec) {
 
-	out << vec->address_ << std::endl;
+std::ostream& operator << (std::ostream &out, const Vertex& vec) {
 
+	out << vec.address_;
 	return out;
 }
 
@@ -89,130 +139,28 @@ QBDI::VMAction movDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 														  QBDI::ANALYSIS_DISASSEMBLY |
 														  QBDI::ANALYSIS_OPERANDS	 |
 														  QBDI::ANALYSIS_SYMBOL		 );
+#if 1
+	if (inst->numOperands == 6 && inst->operands[5].type == QBDI::OPERAND_GPR) {
 
-	#if 1
-	if (inst->numOperands == 2 && inst->operands[1].type == QBDI::OPERAND_GPR) {
+		QBDI::rword rhs = getReg (gprState, inst->operands[5].regCtxIdx);		  
+ 		QBDI::rword lhs = static_cast<long long> (getReg (gprState, inst->operands[0].regCtxIdx)) + static_cast<long long> (inst->operands[3].value);
 
-		QBDI::rword rhs = getReg (gprState, inst->operands[1].regCtxIdx);
+		auto findLhs = info->find (lhs);
+		auto findRhs = info->find (rhs);
 
-		Vertex find{rhs, sizeof (Vertex)};
-		auto toFind = info->vecs_.lower_bound (&find);
-		std::cout << "\t\t---2 operands --- " << std::endl;
-		std::copy (info->vecs_.begin(), info->vecs_.end(), std::ostream_iterator<Vertex*> (std::cout, "\n"));
-
-		if (toFind != info->vecs_.end()) {
-
-			if ((*toFind)->address_ == rhs) {
-			std::cout << "\t\t--- NOT COLORED" << std::endl;
-
-				info->coloredRegs_[inst->operands[0].regCtxIdx] = true;
-				return QBDI::VMAction::CONTINUE; 
-			}
-
-			if (toFind == info->vecs_.begin()) {
-				std::cout << "\t\t--- NOT COLORED" << std::endl;
-
-				return QBDI::VMAction::CONTINUE;
-			}
+		auto end = info->vecs_.end();
+		
+		if (isColored (findLhs, end) && isColored (findRhs, end)) {
 			
-			--toFind;
+			// QBDI::rword minAddr = std::min ((*findLhs).address_, (*findRhs).address_);
+			// QBDI::rword maxAddr = std::max ((*findLhs).address_, (*findRhs).address_);
 
-			if ((*toFind)->address_ + (*toFind)->size_ >= rhs) {
-				
-				std::cout << "\t\t--- COLORED" << std::endl;
-				info->coloredRegs_[inst->operands[0].regCtxIdx] = true;
-				return QBDI::VMAction::CONTINUE; 
-			}
+			auto findInGraph = info->graph_.find(Vertex{(*findLhs).address_, sizeof(Vertex)});
+			auto res = findInGraph->second.insert (Vertex{(*findRhs).address_, sizeof (Vertex)});
 
-			std::cout << "\t\t--- NOT COLORED" << std::endl;
-			return QBDI::VMAction::CONTINUE;
 		}
 	}
-
-	if (inst->numOperands == 6) {
-
-		if (inst->operands[5].type == QBDI::OPERAND_GPR) {
-			
-			QBDI::rword rhs = getReg (gprState, inst->operands[5].regCtxIdx);
-
-			Vertex find{rhs, sizeof (Vertex)};
-			auto toFind = info->vecs_.lower_bound (&find);
-			std::cout << "\t\t---6 operands and read--- " << std::endl;
-			std::copy (info->vecs_.begin(), info->vecs_.end(), std::ostream_iterator<Vertex*> (std::cout));
-
-			if (toFind != info->vecs_.end()) {
-
-				if ((*toFind)->address_ == rhs) {
-				std::cout << "\t\t--- COLORED" << std::endl;
-
-					std::cout << "LEFT = " << (long long) getReg (gprState, inst->operands[0].regCtxIdx) << std::endl;
-					std::cout << "RIGHT = " << static_cast<long long> (inst->operands[3].value) << std::endl; 
-
-					QBDI::rword mem = (long long) getReg (gprState, inst->operands[0].regCtxIdx) + static_cast<long long> (inst->operands[3].value);
-					info->vecs_.insert(new Vertex{mem, (*toFind)->size_});
-					std::cout << "\t\t\t\tMEM = " << mem << std::endl;
-					return QBDI::VMAction::CONTINUE; 
-				}
-
-				if (toFind == info->vecs_.begin()) {
-					std::cout << "\t\t--- NOT COLORED" << std::endl;
-
-					return QBDI::VMAction::CONTINUE;
-				}
-				
-				--toFind;
-
-				if ((*toFind)->address_ + (*toFind)->size_ >= rhs) {
-					
-					std::cout << "\t\t--- COLORED" << std::endl;
-					QBDI::rword mem = (long long) getReg (gprState, inst->operands[0].regCtxIdx) + static_cast<long long> (inst->operands[3].value);
-					info->vecs_.insert(new Vertex{mem, (*toFind)->size_});
-					return QBDI::VMAction::CONTINUE; 
-				}
-
-				std::cout << "\t\t--- NOT COLORED" << std::endl;
-				return QBDI::VMAction::CONTINUE;
-			}
-		}
-
-		QBDI::rword rhs = (long long) getReg (gprState, inst->operands[1].regCtxIdx) + static_cast<long long> (inst->operands[4].value);
-
-		std::cout << "\t\t\t\tRHS = " << rhs << std::endl;
-		Vertex find{rhs, sizeof (Vertex)};
-		auto toFind = info->vecs_.lower_bound (&find);
-		std::cout << "\t\t---6 operands and write--- " << std::endl;
-		std::copy (info->vecs_.begin(), info->vecs_.end(), std::ostream_iterator<Vertex*> (std::cout));
-
-		if (toFind != info->vecs_.end()) {
-
-			if ((*toFind)->address_ == rhs) {
-			std::cout << "\t\t--- COLORED" << std::endl;
-
-				info->coloredRegs_[inst->operands[0].regCtxIdx] = true;
-				return QBDI::VMAction::CONTINUE; 
-			}
-
-			if (toFind == info->vecs_.begin()) {
-				std::cout << "\t\t--- NOT COLORED" << std::endl;
-
-				return QBDI::VMAction::CONTINUE;
-			}
-			
-			--toFind;
-
-			if ((*toFind)->address_ + (*toFind)->size_ >= rhs) {
-				
-				std::cout << "\t\t--- COLORED" << std::endl;
-				info->coloredRegs_[inst->operands[0].regCtxIdx] = true;
-				return QBDI::VMAction::CONTINUE; 
-			}
-
-			std::cout << "\t\t--- NOT COLORED" << std::endl;
-			return QBDI::VMAction::CONTINUE;
-		}
-	}
-	#endif
-#if 0
+#else
 	if (inst->numOperands == 2 && inst->operands[1].type == QBDI::OPERAND_GPR) {
 		
 		QBDI::rword rhs = getReg (gprState, inst->operands[1].regCtxIdx);
@@ -287,7 +235,7 @@ QBDI::VMAction movDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	return QBDI::VMAction::CONTINUE;
 }
 
-Graph* monitorDependences (DBI::DTA &dta) {
+void monitorDependences (DBI::DTA &dta) {
 
 	memInfo inf {}; 
 
@@ -296,12 +244,8 @@ Graph* monitorDependences (DBI::DTA &dta) {
 
 	uint32_t cid = dta.vm_.addCodeCB(QBDI::PREINST, showInstruction, nullptr);
   	assert(cid != QBDI::INVALID_EVENTID);
-  	dta.vm_.addMnemonicCB("CALL*", QBDI::PREINST, sizeMallocDetector, &inf);
   	dta.vm_.addMnemonicCB("RET*", QBDI::PREINST, retMallocDetector, &inf);
   	dta.vm_.addMnemonicCB("MOV*", QBDI::PREINST, movDetector, &inf);
-	// dta.vm_.addMemAccessCB (QBDI::MEMORY_READ, memoryReadDetector, &inf);
-	// dta.vm_.addMemAccessCB (QBDI::MEMORY_WRITE, memoryWriteDetector, &inf);
-
 	
 	bool res = dta.vm_.addInstrumentedModuleFromAddr(reinterpret_cast<QBDI::rword>(testSource));
   	assert(res == true);
@@ -312,9 +256,11 @@ Graph* monitorDependences (DBI::DTA &dta) {
 	for (auto v : inf.vecs_)
 	{
 
-		std::cout << v;
+		std::cout << std::hex << v << std::endl;
 	}
 	// std::copy (inf.vecs_.begin(), inf.vecs_.end(), std::ostream_iterator<Vertex*> (std::cout, "\n"));
+
+	inf.dumpGraph ("out.dot");
   	assert(res == true);
 
 	// return root;
