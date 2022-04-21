@@ -64,28 +64,35 @@ void testSource () {
 
 ## Create X:
 <p align = "center">
-<img src = "pics/out0.png">
+<img src = "mdpics/out0.png">
 </p>
 
 ## Create Y:
 <p align = "center">
-<img src = "pics/out1.png">
+<img src = "mdpics/out1.png">
 </p>
 
 ## Create dependence:
 <p align = "center">
-<img src = "pics/out2.png">
+<img src = "mdpics/out2.png">
 </p>
 
 ## Create inverse dependence:
 <p align = "center">
-<img src = "pics/out3.png">
+<img src = "mdpics/out3.png">
 </p>
 
 ## Delete X:
 
 <p align = "center">
-<img src = "pics/out4.png">
+<img src = "mdpics/out4.png">
+</p>
+
+---
+# Just an amusing picture :) 
+
+<p align = "center">
+<img src = "mdpics/dep.png">
 </p>
 
 ## All in all, I try to do the next task as soon as possible and its implementation will be more exciting  
