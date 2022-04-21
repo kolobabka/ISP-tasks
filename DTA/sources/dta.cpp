@@ -21,13 +21,13 @@ namespace {
 	}
 
 	QBDI::VMAction showInstruction(QBDI::VM *vm, QBDI::GPRState *gprState,
-                               QBDI::FPRState *fprState, void *data) {
+                               	   QBDI::FPRState *fprState, void *data) {
 
  		const QBDI::InstAnalysis *instAnalysis = vm->getInstAnalysis();
 
   		std::cout << std::setbase(16) << instAnalysis->address << ": "
-            << instAnalysis->disassembly << std::endl
-            << std::setbase(10);
+            	  << instAnalysis->disassembly << std::endl
+            	  << std::setbase(10);
 
   		return QBDI::VMAction::CONTINUE;
 	}
@@ -230,7 +230,7 @@ QBDI::VMAction movDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 
 		info->dumpGraph ("out" + std::to_string(info->numOfLog++) + ".dot");
 	}
-	
+
 	return QBDI::VMAction::CONTINUE;
 }
 

@@ -24,4 +24,5 @@ target_link_libraries(${EXEC_FILE} PRIVATE QBDI)
 if (DISASM)
 target_compile_definitions(${EXEC_FILE} PRIVATE SHARED)
 endif()
+
 target_compile_features(${EXEC_FILE} PRIVATE cxx_std_20)
