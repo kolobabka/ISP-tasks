@@ -1,36 +1,30 @@
 #include "dta.hpp"
 #include "test.hpp"
-#include <fstream>
 #include <algorithm>
 #include <iostream>
 #include <vector>
-
 #include <iterator>
 //----------------------------------------
 //----------------------------------------
 namespace {
-
-	void PrintNodes (std::ofstream &dumpOut, std::unordered_map<Vertex, std::set<Vertex, decltype(memInfo::cmpVert)>, std::hash<Vertex>, decltype(memInfo::cmpAddress)> &graph) {
-
-		#if 1
+	void PrintNodes (std::ofstream &dumpOut, 
+	const std::unordered_map<QBDI::rword, std::set<Memory::Data, decltype(Memory::Info::cmpData)>> &graph) {
+		
 		for (auto v : graph) {	
 			dumpOut << "\"" << std::hex << v.first << "\"" << " " 
 			<< "[shape = doublecircle lable = \"" << v.first << "\"]" << std::endl; 
 		}
-		#endif 
 		
 		for (auto v : graph) 
 			for (auto u : v.second) 
-				dumpOut << "\"" << v.first << "\"" << " -> " << "\"" << u.address_ << "\"" << ";" << std::endl;		
-	
+				dumpOut << "\"" << v.first << "\"" << " -> " << "\"" << u << "\"" << ";" << std::endl;		
 	}
 
 	QBDI::VMAction showInstruction(QBDI::VM *vm, QBDI::GPRState *gprState,
                                QBDI::FPRState *fprState, void *data) {
-  		// Obtain an analysis of the instruction from the VM
+
  		const QBDI::InstAnalysis *instAnalysis = vm->getInstAnalysis();
 
-  		// Printing disassembly
   		std::cout << std::setbase(16) << instAnalysis->address << ": "
             << instAnalysis->disassembly << std::endl
             << std::setbase(10);
@@ -44,86 +38,166 @@ namespace {
 			throw std::runtime_error ("Unknown id");
 		
 		QBDI::rword* regPtr = (QBDI::rword*) state;
-
 		return *(regPtr + id);
 	}
 
-	bool isColored (std::set <Vertex, decltype(memInfo::cmpVert)>::iterator toFind, std::set <Vertex, decltype(memInfo::cmpVert)>::iterator end) {
+	inline bool isPadding (std::set <Memory::Memory, decltype(Memory::Info::cmpVert)>::iterator toFind, 
+					std::set <Memory::Memory, decltype(Memory::Info::cmpVert)>::iterator end) {
 
-		if (toFind != end) 
-			return true;
-
-		return false;
+		return toFind != end ? true : false;
 	}
 }
 //----------------------------------------
 //----------------------------------------
+namespace Memory {
+	void Info::dumpGraph (const std::string &fileName) const {
 
-void memInfo::dumpGraph (const char *fileName) const {
+		std::ofstream dumpOut(fileName, dumpOut.out | dumpOut.trunc);
 
-	std::ofstream dumpOut(fileName, dumpOut.out | dumpOut.trunc);
+		dumpOut << "digraph nodes {\n";
 
-	dumpOut << "digraph nodes {\n";
+		PrintNodes(dumpOut, graph_);
 
-	PrintNodes(dumpOut, graph_);
+		dumpOut << "}";
+	}
 
-	dumpOut << "}";
-}
+	std::set <Memory, decltype(Info::cmpVert)>::iterator Info::find (const QBDI::rword address) const { 
 
-std::set <Vertex, decltype(memInfo::cmpVert)>::iterator memInfo::find (const QBDI::rword address) const { 
+		if (pointers_.empty())
+			return pointers_.end();
 
-	if (vecs_.empty())
-		return vecs_.end();
+		Memory find{address, sizeof (Memory)};
+		auto toFind = pointers_.lower_bound (find);
 
-	Vertex find{address, sizeof (Vertex)};
-	auto toFind = vecs_.lower_bound (find);
+		if (toFind != pointers_.end()) {
 
-	if (toFind != vecs_.end()) {
+			if (toFind->address_ == address) 
+				return toFind;
+			
+			if (toFind == pointers_.begin()) 
+				return pointers_.end();
 
-		if ((*toFind).address_ == address) 
+			--toFind;
+			if (toFind->address_ + toFind->size_ >= address) 
+				return toFind;
+			
+			return pointers_.end();
+		}
+
+		toFind = std::prev (toFind);
+		if (toFind->address_ + toFind->size_ >= address) 
 			return toFind;
 		
-		if (toFind == vecs_.begin()) 
-			return vecs_.end();
-
-		--toFind;
-		if ((*toFind).address_ + (*toFind).size_ >= address) 
-			return toFind;
+		return pointers_.end();
 	}
 
-	toFind = std::prev (toFind);
-	if ((*toFind).address_ + (*toFind).size_ >= address) 
-		return toFind;
-	
-	return vecs_.end();
+	void Info::eracePointer (const QBDI::rword address) {
+
+		pointers_.erase (Memory{address, 42});
+
+		auto toDelete = graph_.find (address);
+		graph_.erase (toDelete);
+	}
+
+	void Info::graphUnwinding (const QBDI::rword address) {
+		
+        auto pred = [address] (auto x) { return x.address_ == address; };
+
+		for (auto &v : graph_)  {
+			auto &graphNodes = v.second;
+
+			for (auto curIt = graphNodes.begin(), endIt = graphNodes.end(); curIt != endIt;) 
+				if (pred (*curIt)) 
+					curIt = graphNodes.erase(curIt);
+				else
+					++curIt;
+		}
+    }
+
+	void Info::emplaceIntoGraph (const QBDI::rword lhsAddress, const QBDI::rword rhsAddress, const QBDI::rword offset) {
+
+		auto findInGraph = graph_.find(lhsAddress);
+		auto &graphNodes = findInGraph->second;
+
+		if (graphNodes.empty()) {
+
+			graphNodes.emplace (rhsAddress, offset);
+			return;
+		}
+		
+		auto findData = graphNodes.find ({rhsAddress, offset});
+
+		if (findData != graphNodes.end()) { 
+
+			graphNodes.erase (findData);
+			graphNodes.emplace (rhsAddress, offset);
+		}
+		else {
+			graphNodes.emplace (rhsAddress, offset);
+		}
+	}
 }
 //----------------------------------------
 //----------------------------------------
 QBDI::VMAction enterSourceDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 					  			    QBDI::FPRState *fprState, void* data) {
+		
+	Memory::Info *inf = static_cast<Memory::Info *> (data);
 	
-	memInfo *inf = static_cast<memInfo *> (data);
+	inf->type_ = Memory::Info::FuncType::CTOR; 
+    return QBDI::VMAction::CONTINUE;
+}
 
-	inf->rbp_   = gprState->rbp; 
-	// std::cout << "--- Calloc detected ---" << std::endl;
+QBDI::VMAction enterDestructorDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
+					  			    QBDI::FPRState *fprState, void* data) {
+
+	Memory::Info *inf = static_cast<Memory::Info *> (data);
+
+	inf->type_ = Memory::Info::FuncType::DTOR; 
     return QBDI::VMAction::CONTINUE;
 }
 
 QBDI::VMAction retMallocDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 					  			  QBDI::FPRState *fprState, void* data) {
 	
-	memInfo *inf = static_cast<memInfo *> (data);
+	Memory::Info *inf = static_cast<Memory::Info *> (data);
+	Memory::Info::FuncType &type = inf->type_;
 
-	if (inf->rbp_ == gprState->rbp) {
-		std::cout << "\t\t---ALLOCATION: " << std::hex <<  gprState->rax << std::endl;
-		inf->vecs_.emplace (gprState->rax, gprState->rdi);	
-		inf->graph_.insert ({{gprState->rax, gprState->rdi}, std::set<Vertex, decltype(memInfo::cmpVert)>{}});
+	if (type == Memory::Info::FuncType::CTOR) {
+
+		type = Memory::Info::FuncType::NEUTRAL;
+		QBDI::rword rax = gprState->rax;
+
+		inf->pointers_.emplace (rax, gprState->rdi);
+		inf->graph_.insert ({rax, std::set<Memory::Data, decltype(Memory::Info::cmpData)>{}});
+
+		inf->dumpGraph ("out" + std::to_string(inf->numOfLog++) + ".dot");
 	}
-	
     return QBDI::VMAction::CONTINUE;
 }
 
-std::ostream& operator << (std::ostream &out, const Vertex& vec) {
+QBDI::VMAction callDestructDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
+					  			  QBDI::FPRState *fprState, void* data) {
+	
+	Memory::Info *inf = static_cast<Memory::Info *> (data);
+	Memory::Info::FuncType &type = inf->type_;
+
+	if (type == Memory::Info::FuncType::DTOR) {
+
+		type = Memory::Info::FuncType::NEUTRAL;
+
+		QBDI::rword address = gprState->rdi;
+
+		inf->eracePointer 	(address);
+		inf->graphUnwinding (address);
+
+		inf->dumpGraph ("out" + std::to_string(inf->numOfLog++) + ".dot");
+	}
+    return QBDI::VMAction::CONTINUE;
+}
+
+
+std::ostream& operator << (std::ostream &out, const Memory::Data& vec) {
 
 	out << vec.address_;
 	return out;
@@ -132,136 +206,56 @@ std::ostream& operator << (std::ostream &out, const Vertex& vec) {
 QBDI::VMAction movDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 					  		QBDI::FPRState *fprState, void* data) {
 
-	memInfo *info = (memInfo *) data;
-
-	// std::vector<QBDI::MemoryAccess> memaccesses = vm->getInstMemoryAccess();
+	Memory::Info *info = (Memory::Info *) data;
 	const QBDI::InstAnalysis* inst = vm->getInstAnalysis (QBDI::ANALYSIS_INSTRUCTION |
 														  QBDI::ANALYSIS_DISASSEMBLY |
 														  QBDI::ANALYSIS_OPERANDS	 |
 														  QBDI::ANALYSIS_SYMBOL		 );
-#if 1
-	if (inst->numOperands == 6 && inst->operands[5].type == QBDI::OPERAND_GPR) {
 
+	if (inst->numOperands == 6 && inst->operands[5].type == QBDI::OPERAND_GPR) {
+		
 		QBDI::rword rhs = getReg (gprState, inst->operands[5].regCtxIdx);		  
- 		QBDI::rword lhs = static_cast<long long> (getReg (gprState, inst->operands[0].regCtxIdx)) + static_cast<long long> (inst->operands[3].value);
+ 		QBDI::rword lhs = static_cast<long long> (getReg (gprState, inst->operands[0].regCtxIdx)) 
+		 				+ static_cast<long long> (inst->operands[3].value);
 
 		auto findLhs = info->find (lhs);
 		auto findRhs = info->find (rhs);
+		auto end = info->pointers_.end();
 
-		auto end = info->vecs_.end();
-		
-		if (isColored (findLhs, end) && isColored (findRhs, end)) {
-			
-			// QBDI::rword minAddr = std::min ((*findLhs).address_, (*findRhs).address_);
-			// QBDI::rword maxAddr = std::max ((*findLhs).address_, (*findRhs).address_);
+		if (!(isPadding (findLhs, end)) || !(isPadding (findRhs, end)))
+			return QBDI::VMAction::CONTINUE;
 
-			auto findInGraph = info->graph_.find(Vertex{(*findLhs).address_, sizeof(Vertex)});
-			auto res = findInGraph->second.insert (Vertex{(*findRhs).address_, sizeof (Vertex)});
+		QBDI::rword offset = lhs - findLhs->address_;
+		info->emplaceIntoGraph (findLhs->address_, findRhs->address_, offset);
 
-		}
+		info->dumpGraph ("out" + std::to_string(info->numOfLog++) + ".dot");
 	}
-#else
-	if (inst->numOperands == 2 && inst->operands[1].type == QBDI::OPERAND_GPR) {
-		
-		QBDI::rword rhs = getReg (gprState, inst->operands[1].regCtxIdx);
-
-		Vertex find{rhs, sizeof (Vertex)};
-		auto toFind = info->vecs_.lower_bound (&find);
-
-		if (toFind != info->vecs_.end()) {
-
-			std::cout << "Find it to write" << std::endl;
-		}
-	}
-
-	if (inst->numOperands == 6) {
-
-		for (int i = 0; i < 6; ++i) {
-
-
-		}
-	}
-	switch (inst->operands[1].type) {
-
-		case QBDI::OPERAND_GPR:
-			std::cout << "\t\t ---OPERAND_GPR, NUM: " << (int)inst->numOperands << std::endl;
-			std::cout << "\t\t --- Type: " << QBDI::OPERAND_GPR << std::endl;
-			break;
-		case QBDI::OPERAND_IMM:
-			std::cout << "\t\t ---OPERAND_IMM, NUM: " << (int)inst->numOperands << std::endl;
-			std::cout << "\t\t --- Type: " << QBDI::OPERAND_IMM << std::endl;
-			break;
-		case QBDI::OPERAND_PRED:
-			std::cout << "\t\t ---OPERAND_PRED, NUM: " << (int)inst->numOperands << std::endl;
-			std::cout << "\t\t --- Type: " << QBDI::OPERAND_GPR << std::endl;
-			break;
-		case QBDI::OPERAND_SEG:
-			std::cout << "\t\t ---OPERAND_SEG, NUM: " << (int)inst->numOperands << std::endl;
-			std::cout << "\t\t --- Type: " << QBDI::OPERAND_GPR << std::endl;
-			break;
-		case QBDI::OPERAND_FPR:
-			std::cout << "\t\t ---OPERAND_FPR, NUM: " << (int)inst->numOperands << std::endl;
-			std::cout << "\t\t --- Type: " << QBDI::OPERAND_GPR << std::endl;
-			break;
-		default:
-			std::cout << "\t\t--- WHAT???" << std::endl;
-	}
-	std::cout << "\t\t\t--- MOV DETECTED" << std::endl;
-
-	if (inst->numOperands == 6)
-		for (int i = 0; i < 6; ++i) {
-
-			std::cout << "\t\t[ " << i << " ]" << inst->operands[i].type << std::endl;
-
-			if (inst->operands[i].type == QBDI::OPERAND_IMM)
-				std::cout << "\t\t---Value: " << (long long)inst->operands[i].value << std::endl;
-			if (inst->operands[i].type == QBDI::OPERAND_GPR) {
-				std::cout << "\t\t---Reg Value: " << getReg (gprState, inst->operands[i].regCtxIdx) << std::endl;
-				std::cout << "\t\t---Reg type : " << (long long)inst->operands[i].regAccess << std::endl;
-			}
-
-		}
-	else {
-
-		for (int i = 0; i < 2; ++i) {
-
-			std::cout << "\t\t[ " << i << " ]" << inst->operands[i].type << std::endl;
-
-			if (inst->operands[i].type == QBDI::OPERAND_IMM)
-				std::cout << "\t\t---Value: " << (long long)inst->operands[i].value << std::endl;
-		}	
-	}
-#endif
+	
 	return QBDI::VMAction::CONTINUE;
 }
 
-void monitorDependences (DBI::DTA &dta) {
+Memory::Info monitorDependences (DBI::DTA &dta) {
 
-	memInfo inf {}; 
+	Memory::Info inf {}; 
 
     dta.vm_.addCodeAddrCB (reinterpret_cast <QBDI::rword> (source), QBDI::PREINST, enterSourceDetector, &inf);
+    dta.vm_.addCodeAddrCB (reinterpret_cast <QBDI::rword> (destructor), QBDI::PREINST, enterDestructorDetector, &inf);
 	QBDI::rword retValue;
 
+#ifdef DISASM
 	uint32_t cid = dta.vm_.addCodeCB(QBDI::PREINST, showInstruction, nullptr);
   	assert(cid != QBDI::INVALID_EVENTID);
+#endif
+
   	dta.vm_.addMnemonicCB("RET*", QBDI::PREINST, retMallocDetector, &inf);
+  	dta.vm_.addMnemonicCB("CALL*", QBDI::PREINST, callDestructDetector, &inf);
   	dta.vm_.addMnemonicCB("MOV*", QBDI::PREINST, movDetector, &inf);
 	
 	bool res = dta.vm_.addInstrumentedModuleFromAddr(reinterpret_cast<QBDI::rword>(testSource));
   	assert(res == true);
 
-	std::cout << "\t\t... Running  ..." << std::endl;
   	res = dta.vm_.call(&retValue, reinterpret_cast<QBDI::rword>(testSource));
-	
-	for (auto v : inf.vecs_)
-	{
-
-		std::cout << std::hex << v << std::endl;
-	}
-	// std::copy (inf.vecs_.begin(), inf.vecs_.end(), std::ostream_iterator<Vertex*> (std::cout, "\n"));
-
-	inf.dumpGraph ("out.dot");
   	assert(res == true);
 
-	// return root;
+	return inf;
 }

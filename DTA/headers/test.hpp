@@ -12,6 +12,7 @@ struct vert {
 //----------------------------------------
 //----------------------------------------
 vert* source ();
+void destructor (vert* ptr);
 void testSource ();
 #if 0
 unsigned char* source(int size);
