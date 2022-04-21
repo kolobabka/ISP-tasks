@@ -206,7 +206,7 @@ std::ostream& operator << (std::ostream &out, const Memory::Data& vec) {
 QBDI::VMAction movDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 					  		QBDI::FPRState *fprState, void* data) {
 
-	Memory::Info *info = (Memory::Info *) data;
+	Memory::Info *info = static_cast<Memory::Info *> (data);
 	const QBDI::InstAnalysis* inst = vm->getInstAnalysis (QBDI::ANALYSIS_INSTRUCTION |
 														  QBDI::ANALYSIS_DISASSEMBLY |
 														  QBDI::ANALYSIS_OPERANDS	 |
