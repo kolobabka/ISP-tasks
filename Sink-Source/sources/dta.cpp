@@ -27,12 +27,6 @@ namespace {
 		QBDI::rword* regPtr = (QBDI::rword*) state;
 		return *(regPtr + id);
 	}
-
-	inline bool isPadding (std::set <Memory::Memory, decltype (Memory::Info::cmpMem)>::iterator toFind, 
-					std::set <Memory::Memory, decltype (Memory::Info::cmpMem)>::iterator end) {
-
-		return toFind != end ? true : false;
-	}
 }
 //----------------------------------------
 //----------------------------------------
@@ -184,8 +178,8 @@ QBDI::VMAction enterSinkDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	auto argIt = info->shadowReg_.find (5);
 
 	if (argIt != info->shadowReg_.cend()) 
-		std::cout << "\t\t\t####POPALSYA" << std::endl;
-
+		std::cout << "\t\t--- Leaking detected!!!" << std::endl;
+	
 	return QBDI::VMAction::CONTINUE;
 }
 
@@ -204,7 +198,7 @@ Memory::Info leakDetector (DBI::DTA &dta) {
 
 	QBDI::rword retValue;
 
-#ifndef DISASM
+#ifdef DISASM
 	uint32_t cid = dta.vm_.addCodeCB(QBDI::PREINST, showInstruction, nullptr);
   	assert(cid != QBDI::INVALID_EVENTID);
 #endif

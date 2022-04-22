@@ -14,7 +14,6 @@ int testSink() {
     unsigned int tmp;
     unsigned char localBuf[10];
     unsigned char *buf = source(10);
-
     // case 1
     sink(buf[0]); // Leak
     sink(localBuf[0]); // Ok
@@ -38,10 +37,9 @@ int testSink() {
     localBuf[0] = globalBuf[1];
     tmp = localBuf[0];
     sink(globalBuf[2]); // Ok
-#if 0
     sink(tmp & 0xff); // Leak
-#endif
-#if 0 
+
+#if 1 
     sink(tmp >> 1 & 0xff); // ????
 #endif
 
