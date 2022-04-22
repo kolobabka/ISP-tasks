@@ -71,76 +71,53 @@ namespace Memory {
     using memIt = std::set <Memory>::iterator;
     using regIt = std::set <int16_t>::iterator;    
 
+    template <> 
+    struct Info::changeShadowFunctor<Info::memIt, Info::regIt, QBDI::rword> {
 
-template <> 
-struct Info::changeShadowFunctor<Info::memIt,
-                                 Info::regIt,
-                                 QBDI::rword> {
-
-    changeShadowFunctor (Info::memIt lhs,
-                        Info::regIt rhs,
-                        QBDI::rword lhsG) {
-                                    
-	    auto lhsEnd  = shadowMem_.end ();  
-        auto rhsEnd  = shadowReg_.end ();
- 
-
-        if (lhs == lhsEnd && rhs != rhsEnd) {
-
-            shadowMem_.emplace (lhsG);
+        changeShadowFunctor (Info::memIt lhs, Info::regIt rhs, QBDI::rword address) {
+                                        
+            auto lhsEnd  = shadowMem_.end ();  
+            auto rhsEnd  = shadowReg_.end ();
+    
+            if (lhs == lhsEnd && rhs != rhsEnd) 
+                shadowMem_.emplace (address);
+            else
+                if (rhs == rhsEnd && lhs != lhsEnd) 
+                    shadowMem_.erase (lhs);
         }
-        else {
-            if (rhs == rhsEnd && lhs != lhsEnd) 
-                shadowMem_.erase (lhs);
-        }
-    }
-};
+    };
 
-template <> 
-struct Info::changeShadowFunctor<Info::regIt,
-                                 Info::memIt,
-                                 int16_t> {
+    template <> 
+    struct Info::changeShadowFunctor<Info::regIt, Info::memIt, int16_t> {
 
-    changeShadowFunctor (Info::regIt lhs,
-                        Info::memIt rhs,
-                        int16_t lhsG) {
-        
-	    auto lhsEnd  = shadowReg_.end ();  
-        auto rhsEnd  = shadowMem_.end ();
- 
-        if (lhs == lhsEnd && rhs != rhsEnd) {
-
-            shadowReg_.emplace (lhsG);
+        changeShadowFunctor (Info::regIt lhs, Info::memIt rhs, int16_t lhsIdx) {
             
+            auto lhsEnd  = shadowReg_.end ();  
+            auto rhsEnd  = shadowMem_.end ();
+    
+            if (lhs == lhsEnd && rhs != rhsEnd) 
+                shadowReg_.emplace (lhsIdx);
+            else 
+                if (rhs == rhsEnd && lhs != lhsEnd) 
+                    shadowReg_.erase (lhs);
         }
-        else {
-            if (rhs == rhsEnd && lhs != lhsEnd) 
-                shadowReg_.erase (lhs);
-        }
-    }
-};
+    };
 
-template <>
-struct Info::changeShadowFunctor<Info::regIt, 
-                                 Info::regIt,
-                                 int16_t> {
+    template <>
+    struct Info::changeShadowFunctor<Info::regIt, Info::regIt, int16_t> {
 
-        changeShadowFunctor (Info::regIt lhs,
-                             Info::regIt rhs,
-                             int16_t lhsG) {
+        changeShadowFunctor (Info::regIt lhs, Info::regIt rhs, int16_t lhsIdx) {
             
             auto end = shadowReg_.end ();
 
-            if (lhs == end && rhs != end) {
-                
-            	shadowReg_.emplace (lhsG);
-            }
-            if (rhs == end && lhs != end) 
-                shadowReg_.erase (lhs);
-            
+            if (lhs == end && rhs != end)         
+            	shadowReg_.emplace (lhsIdx);
+            else 
+                if (rhs == end && lhs != end) 
+                    shadowReg_.erase (lhs);
         }
     };
-};
+}
 
 
 //----------------------------------------

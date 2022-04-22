@@ -88,9 +88,8 @@ QBDI::VMAction readDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	QBDI::rword	lhs = getReg (gprState, lhsIdx);
 	QBDI::rword rhs = memaccesses[0].accessAddress;
 
-	Memory::Info::changeShadowFunctor<Memory::Info::regIt,
-									  Memory::Info::memIt,
-									  int16_t> shadowChanger(info->shadowReg_.find (lhsIdx), info->find (rhs), lhsIdx);
+	Memory::Info::changeShadowFunctor<Memory::Info::regIt, Memory::Info::memIt, int16_t> 
+	shadowChanger(info->shadowReg_.find (lhsIdx), info->find (rhs), lhsIdx);
 	
 	return QBDI::VMAction::CONTINUE;
 }
@@ -110,14 +109,12 @@ QBDI::VMAction writeDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 		return QBDI::VMAction::CONTINUE;
 
 	int16_t rhsIdx = inst->operands[5].regCtxIdx;
-	std::cout << "\t\t\tRHS " << getReg (gprState, rhsIdx) << std::endl; 
 	
 	rhs = getReg (gprState, rhsIdx);
 	lhs = memaccesses[0].accessAddress;
 
- 	Memory::Info::changeShadowFunctor<Memory::Info::memIt,
-									  Memory::Info::regIt,
-									  QBDI::rword> shadowChanger(info->find (lhs), info->shadowReg_.find (rhsIdx), lhs);
+ 	Memory::Info::changeShadowFunctor<Memory::Info::memIt, Memory::Info::regIt, QBDI::rword> 
+	shadowChanger(info->find (lhs), info->shadowReg_.find (rhsIdx), lhs);
 
 	return QBDI::VMAction::CONTINUE;
 }
@@ -140,9 +137,8 @@ QBDI::VMAction movDetector(QBDI::VM *vm, QBDI::GPRState *gprState,
 	QBDI::rword lhs = getReg (gprState, lhsIdx);
 	QBDI::rword rhs = getReg (gprState, rhsIdx);
 
-	Memory::Info::changeShadowFunctor<Memory::Info::regIt,
-									  Memory::Info::regIt,
-									  int16_t> shadowChanger(info->shadowReg_.find (lhsIdx), info->shadowReg_.find (rhsIdx), lhsIdx);
+	Memory::Info::changeShadowFunctor<Memory::Info::regIt, Memory::Info::regIt, int16_t> 
+	shadowChanger(info->shadowReg_.find (lhsIdx), info->shadowReg_.find (rhsIdx), lhsIdx);
 		
 	return QBDI::VMAction::CONTINUE;
 }
@@ -152,7 +148,6 @@ QBDI::VMAction enterSourceDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 		
 	Memory::Info *inf = static_cast<Memory::Info *> (data);
 	
-	std::cout << "\t\t--- SOURCE DETECTED" << std::endl;
 	inf->type_ = Memory::Info::FuncType::SOURCE; 
 	inf->size_ = gprState->rdi;
 
@@ -172,11 +167,9 @@ QBDI::VMAction retSourceDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	
 	if (type == Memory::Info::FuncType::SOURCE) {
 
-		std::cout << "\t\t--Here" << std::endl;
 		type = Memory::Info::FuncType::NEUTRAL;
 		QBDI::rword rax = gprState->rax;
 
-		std::cout << "\t\t\tALLOCATED MEMORY " << rax << std::endl;
 		inf->shadowMem_.emplace (rax, inf->size_);
 		inf->shadowReg_.emplace (0);
 	}
