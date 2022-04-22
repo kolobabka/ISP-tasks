@@ -1,10 +1,10 @@
 #include "dta.hpp"
 //----------------------------------------
 //----------------------------------------
-int main () {
+int main() {
 
-    DBI::DTA dta;
+  DBI::DTA dta;
 
-    auto inf = monitorDependences (dta); 
-    return 0;
+  auto inf = monitorDependences(dta);
+  return 0;
 }

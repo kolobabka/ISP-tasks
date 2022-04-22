@@ -4,9 +4,9 @@
 #include <stdlib.h>
 //----------------------------------------
 //----------------------------------------
-unsigned char* source(int size);
+unsigned char *source(int size);
 void sink(unsigned char b);
-int testSink ();
+int testSink();
 //----------------------------------------
 //----------------------------------------
 #endif

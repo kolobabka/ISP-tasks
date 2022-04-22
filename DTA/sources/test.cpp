@@ -1,26 +1,26 @@
 #include "test.hpp"
 //----------------------------------------
 //----------------------------------------
-vert* source () {return (vert*) malloc (sizeof (vert));}
-void destructor (vert* ptr) { free (ptr); }
+vert *source() { return (vert *)malloc(sizeof(vert)); }
+void destructor(vert *ptr) { free(ptr); }
 //----------------------------------------
 //----------------------------------------
-void testSource () {
+void testSource() {
 
-    vert* x = source ();  //create vertex 
-    vert* y = source ();  //create vertex
+  vert *x = source(); // create vertex
+  vert *y = source(); // create vertex
 
-    x->l_ = y;
-    y->r_ = x;
+  x->l_ = y;
+  y->r_ = x;
 
-    destructor (x);
-    destructor (y);
+  destructor(x);
+  destructor(y);
 #if 0
     vert* z = source ();  //create vertex
     vert* w = source ();  //create vertex
     vert* u = source ();  //create vertex
-#endif 
-# if 0
+#endif
+#if 0
     y->l_ = w;            // create edge y --> w
     x->r_ = z;            // create edge x --> z
     x->l_ = u;            // remove edge x --> z and create x --> u
@@ -36,7 +36,7 @@ void testSource () {
     destructor (tmp);     // remove z and all incidental edges
     destructor (y);       // remove z and all incidental edges
     destructor (x);       // remove x
-#endif 
+#endif
 }
 //----------------------------------------
 //----------------------------------------
@@ -61,4 +61,4 @@ int testSink () {
     free (buf); 
     return 0;
 }
-#endif 
+#endif
