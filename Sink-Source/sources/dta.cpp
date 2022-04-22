@@ -22,14 +22,14 @@ namespace {
 	QBDI::rword getReg (QBDI::GPRState* state, QBDI::rword id) {
 		
 		if (id > 18) 
-			throw std::runtime_error ("Unknown id");
+			return id;
 		
 		QBDI::rword* regPtr = (QBDI::rword*) state;
 		return *(regPtr + id);
 	}
 
-	inline bool isPadding (std::set <Memory::Memory>::iterator toFind, 
-					std::set <Memory::Memory>::iterator end) {
+	inline bool isPadding (std::set <Memory::Memory, decltype (Memory::Info::cmpMem)>::iterator toFind, 
+					std::set <Memory::Memory, decltype (Memory::Info::cmpMem)>::iterator end) {
 
 		return toFind != end ? true : false;
 	}
@@ -37,13 +37,6 @@ namespace {
 //----------------------------------------
 //----------------------------------------
 namespace Memory {
-	
-
-    bool operator < (const Memory& lhs, const Memory& rhs) {
-
-        return lhs.address_ < rhs.address_;
-    }
-
 	Info::memIt Info::find (const QBDI::rword address) const { 
 
 		if (shadowMem_.empty())
@@ -95,27 +88,10 @@ QBDI::VMAction readDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 	QBDI::rword	lhs = getReg (gprState, lhsIdx);
 	QBDI::rword rhs = memaccesses[0].accessAddress;
 
-	auto findLhs = info->shadowReg_.find (lhsIdx);
-	auto findRhs = info->find (rhs);
-	auto endLhs  = info->shadowReg_.end ();
-	auto endRhs  = info->shadowMem_.end ();  
-
 	Memory::Info::changeShadowFunctor<Memory::Info::regIt,
 									  Memory::Info::memIt,
-									  QBDI::rword> shadowChanger(info->shadowReg_.find (lhsIdx), info->find (rhs), lhs);
+									  int16_t> shadowChanger(info->shadowReg_.find (lhsIdx), info->find (rhs), lhsIdx);
 	
-	// shadowChanger (info->shadowReg_.find (lhsIdx), info->find (rhs), lhs);
-	// if (findLhs == endLhs && findRhs != endRhs) {
-
-	// 	info->shadowReg_.emplace (lhsIdx);
-	// 	return QBDI::VMAction::CONTINUE;
-	// }
-	// if (findRhs == endRhs) 
-	// 	if (findLhs == endLhs)
-	// 		return QBDI::VMAction::CONTINUE;
-	// 	else 
-	// 		info->shadowReg_.erase (findLhs);	
-
 	return QBDI::VMAction::CONTINUE;
 }
 
@@ -134,32 +110,14 @@ QBDI::VMAction writeDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 		return QBDI::VMAction::CONTINUE;
 
 	int16_t rhsIdx = inst->operands[5].regCtxIdx;
-	if (rhsIdx == -1) 	
-		rhs = inst->operands[5].value;
+	std::cout << "\t\t\tRHS " << getReg (gprState, rhsIdx) << std::endl; 
 	
-	else
-		rhs = getReg (gprState, rhsIdx);
-	// if (rhsIdx >= 19)	
-	// 	return QBDI::VMAction::CONTINUE;
+	rhs = getReg (gprState, rhsIdx);
 	lhs = memaccesses[0].accessAddress;
 
  	Memory::Info::changeShadowFunctor<Memory::Info::memIt,
 									  Memory::Info::regIt,
 									  QBDI::rword> shadowChanger(info->find (lhs), info->shadowReg_.find (rhsIdx), lhs);
-
-
-	// std::cout << sizeof (shadowChanger) << std::endl;
-
-	// if (findLhs == endLhs && findRhs != endRhs) {
-
-	// 	info->shadowMem_.emplace (lhs);
-	// 	return QBDI::VMAction::CONTINUE;
-	// }
-	// if (findRhs == endRhs) 
-	// 	if (findLhs == endLhs)
-	// 		return QBDI::VMAction::CONTINUE;
-	// 	else 
-	// 		info->shadowMem_.erase (findLhs);	
 
 	return QBDI::VMAction::CONTINUE;
 }
@@ -184,19 +142,8 @@ QBDI::VMAction movDetector(QBDI::VM *vm, QBDI::GPRState *gprState,
 
 	Memory::Info::changeShadowFunctor<Memory::Info::regIt,
 									  Memory::Info::regIt,
-									  QBDI::rword> shadowChanger(info->shadowReg_.find (lhsIdx), info->shadowReg_.find (rhsIdx), lhs);
+									  int16_t> shadowChanger(info->shadowReg_.find (lhsIdx), info->shadowReg_.find (rhsIdx), lhsIdx);
 		
-	// if (findLhs == end && findRhs != end) {
-
-	// 	info->shadowReg_.emplace (lhsIdx);
-	// 	return QBDI::VMAction::CONTINUE;
-	// }
-	// if (findRhs == end) 
-	// 	if (findLhs == end)
-	// 		return QBDI::VMAction::CONTINUE;
-	// 	else 
-	// 		info->shadowReg_.erase (findLhs);	
-
 	return QBDI::VMAction::CONTINUE;
 }
 
@@ -229,7 +176,9 @@ QBDI::VMAction retSourceDetector (QBDI::VM *vm, QBDI::GPRState *gprState,
 		type = Memory::Info::FuncType::NEUTRAL;
 		QBDI::rword rax = gprState->rax;
 
-		// inf->shadowMem_.emplace (rax, inf->size_);
+		std::cout << "\t\t\tALLOCATED MEMORY " << rax << std::endl;
+		inf->shadowMem_.emplace (rax, inf->size_);
+		inf->shadowReg_.emplace (0);
 	}
     return QBDI::VMAction::CONTINUE;
 }

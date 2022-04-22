@@ -18,7 +18,6 @@ int testSink() {
     // case 1
     sink(buf[0]); // Leak
     sink(localBuf[0]); // Ok
-
     // case 2
     localBuf[1] = buf[1];
     sink(localBuf[1]); // Leak
@@ -39,7 +38,9 @@ int testSink() {
     localBuf[0] = globalBuf[1];
     tmp = localBuf[0];
     sink(globalBuf[2]); // Ok
+#if 0
     sink(tmp & 0xff); // Leak
+#endif
 #if 0 
     sink(tmp >> 1 & 0xff); // ????
 #endif

@@ -40,7 +40,6 @@ namespace Memory {
         size_t size_;
     };  
 
-    bool operator < (const Memory& lhs, const Memory& rhs);
     struct Info {
         
         enum class FuncType {
@@ -59,8 +58,8 @@ namespace Memory {
         FuncType type_ = FuncType::NEUTRAL;
         QBDI::rword size_  = 0;
 
-        // static inline auto cmpMem = [] (auto x, auto y) { return (x.address_ < y.address_); };
-        static inline std::set <Memory> shadowMem_;
+        static inline auto cmpMem = [] (auto x, auto y) { return (x.address_ < y.address_); };
+        static inline std::set <Memory, decltype (cmpMem)> shadowMem_;
         static inline std::set <int16_t> shadowReg_; 
 
         using memIt = std::set <Memory>::iterator;
@@ -81,7 +80,7 @@ struct Info::changeShadowFunctor<Info::memIt,
     changeShadowFunctor (Info::memIt lhs,
                         Info::regIt rhs,
                         QBDI::rword lhsG) {
-        
+                                    
 	    auto lhsEnd  = shadowMem_.end ();  
         auto rhsEnd  = shadowReg_.end ();
  
@@ -100,16 +99,15 @@ struct Info::changeShadowFunctor<Info::memIt,
 template <> 
 struct Info::changeShadowFunctor<Info::regIt,
                                  Info::memIt,
-                                 QBDI::rword> {
+                                 int16_t> {
 
     changeShadowFunctor (Info::regIt lhs,
                         Info::memIt rhs,
-                        QBDI::rword lhsG) {
+                        int16_t lhsG) {
         
 	    auto lhsEnd  = shadowReg_.end ();  
         auto rhsEnd  = shadowMem_.end ();
  
-
         if (lhs == lhsEnd && rhs != rhsEnd) {
 
             shadowReg_.emplace (lhsG);
@@ -125,20 +123,21 @@ struct Info::changeShadowFunctor<Info::regIt,
 template <>
 struct Info::changeShadowFunctor<Info::regIt, 
                                  Info::regIt,
-                                 QBDI::rword> {
+                                 int16_t> {
 
         changeShadowFunctor (Info::regIt lhs,
                              Info::regIt rhs,
-                             QBDI::rword lhsG) {
+                             int16_t lhsG) {
             
             auto end = shadowReg_.end ();
 
             if (lhs == end && rhs != end) {
-
+                
             	shadowReg_.emplace (lhsG);
             }
             if (rhs == end && lhs != end) 
                 shadowReg_.erase (lhs);
+            
         }
     };
 };
