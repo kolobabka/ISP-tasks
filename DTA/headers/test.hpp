@@ -5,15 +5,14 @@
 //----------------------------------------
 //----------------------------------------
 struct vert {
-
-  vert *l_;
-  vert *r_;
+    vert *l_;
+    vert *r_;
 };
 //----------------------------------------
 //----------------------------------------
-vert *source();
-void destructor(vert *ptr);
-void testSource();
+vert *source ();
+void destructor (vert *ptr);
+void testSource ();
 #if 0
 unsigned char* source(int size);
 void sink(unsigned char b);

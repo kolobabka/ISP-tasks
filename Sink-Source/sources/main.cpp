@@ -1,10 +1,10 @@
 #include "dta.hpp"
 //----------------------------------------
 //----------------------------------------
-int main() {
+int main ()
+{
+    DBI::DTA dta;
 
-  DBI::DTA dta;
-
-  auto inf = leakDetector(dta);
-  return 0;
+    auto inf = leakDetector (dta);
+    return 0;
 }
